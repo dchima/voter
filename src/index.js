@@ -4,6 +4,8 @@ const cron = require('node-cron');
 const FormData = require('form-data');
 const http = require('http');
 const https = require('https');
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 
 
 const app = express();
@@ -12,11 +14,22 @@ const httpAgent = new http.Agent({ keepAlive: false });
 
 
 
-cron.schedule('*/10 * * * * *', vote);
+cron.schedule('*/60 * * * * *', vote);
 // vote();
+
+
+async function execute(command) {
+  const { stdout, stderr } = await exec(command);
+  // console.log('command output: ', stdout, 'command error: ', stderr);
+  return { stdout, stderr }
+};
 
 async function vote () {
   console.log('running vote task');
+  const vpn_on = await execute('sudo protonvpn c -r');
+  if (vpn_on.stderr) { console.log('did not connect vpn. killing function'); return; }
+  console.log('connected to vpn');
+
 
   const url = 'https://africahousingawards.com/wp-admin/admin-ajax.php?action=totalpoll';
 
@@ -46,7 +59,14 @@ async function vote () {
     },
   );
 
-  console.log(response);
+  if (response.data.includes('thankyou')) console.log('voted')
+    else console.log('did not vote')
+  
+    const vpn_off = await execute('sudo protonvpn d');
+    if (vpn_on.stderr) { console.log('did not disconnect vpn'); return; }
+    console.log('disconnected from vpn');
+    console.log('---------------------------------------')
+    console.log('---------------------------------------')
 };
 
 // vote();
